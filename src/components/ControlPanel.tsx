@@ -17,6 +17,8 @@ interface ControlPanelProps {
   onSizeScaleChange: (scale: number) => void;
   opacity: number;
   onOpacityChange: (opacity: number) => void;
+  pulsationMode: boolean;
+  onPulsationModeChange: (mode: boolean) => void;
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onLoadSample: () => void;
 }
@@ -34,6 +36,8 @@ export const ControlPanel = ({
   onSizeScaleChange,
   opacity,
   onOpacityChange,
+  pulsationMode,
+  onPulsationModeChange,
   onFileUpload,
   onLoadSample
 }: ControlPanelProps) => {
@@ -126,6 +130,14 @@ export const ControlPanel = ({
             size="sm"
           >
             {showLabels ? 'Hide' : 'Show'} Labels
+          </Button>
+          <Button
+            onClick={() => onPulsationModeChange(!pulsationMode)}
+            variant={pulsationMode ? 'default' : 'secondary'}
+            size="sm"
+            className="col-span-2"
+          >
+            {pulsationMode ? 'Disable' : 'Enable'} Pulsation
           </Button>
         </div>
       </div>

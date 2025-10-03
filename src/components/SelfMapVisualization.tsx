@@ -21,6 +21,7 @@ interface SelfMapVisualizationProps {
   showLabels: boolean;
   sizeScale: number;
   opacity: number;
+  pulsationMode: boolean;
 }
 
 const CATEGORIES = ['People', 'Accomplishments', 'Life Story', 'Ideas/Likes', 'Other'];
@@ -47,7 +48,8 @@ export const SelfMapVisualization = ({
   showEdges,
   showLabels,
   sizeScale,
-  opacity
+  opacity,
+  pulsationMode
 }: SelfMapVisualizationProps) => {
   const [hoveredEntry, setHoveredEntry] = useState<Entry | null>(null);
   const [hoveredImage, setHoveredImage] = useState<string | null>(null);
@@ -314,7 +316,7 @@ export const SelfMapVisualization = ({
   const handleUnhover = () => {
     setHoveredEntry(null);
     setDimmedNodes(new Set());
-    // Don't clear the image immediately - let the timeout handle it
+    // Don't clear the image - keep it visible until timeout or new hover
   };
 
   return (
@@ -328,16 +330,28 @@ export const SelfMapVisualization = ({
           <img 
             src={hoveredImage}
             alt="Entry visualization"
-            className="w-32 h-32 object-cover pulse-glow"
+            className={`w-32 h-32 object-cover ${pulsationMode ? 'pulse-glow' : ''}`}
             onError={() => setImageError(true)}
           />
+          <div className="absolute top-1 right-1">
+            <button
+              onClick={() => {
+                setHoveredImage(null);
+                setImageError(false);
+                if (imageTimeout) clearTimeout(imageTimeout);
+              }}
+              className="w-5 h-5 rounded-full bg-background/80 hover:bg-background flex items-center justify-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
       
-      <div className="viz-container relative overflow-visible">
+      <div className={`viz-container relative overflow-visible ${pulsationMode ? 'pulsation-active' : ''}`}>
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-full bg-gradient-to-b from-primary/20 via-transparent to-transparent" />
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 w-full bg-gradient-to-r from-primary/20 via-transparent to-transparent" />
+          <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-1 h-full bg-gradient-to-b from-primary/20 via-transparent to-transparent ${pulsationMode ? 'animate-pulse' : ''}`} />
+          <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-1 w-full bg-gradient-to-r from-primary/20 via-transparent to-transparent ${pulsationMode ? 'animate-pulse' : ''}`} />
         </div>
         
         <Plot

@@ -14,6 +14,7 @@ const Index = () => {
   const [showLabels, setShowLabels] = useState(true);
   const [sizeScale, setSizeScale] = useState(1.0);
   const [opacity, setOpacity] = useState(0.88);
+  const [pulsationMode, setPulsationMode] = useState(false);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -84,6 +85,8 @@ const Index = () => {
               onSizeScaleChange={setSizeScale}
               opacity={opacity}
               onOpacityChange={setOpacity}
+              pulsationMode={pulsationMode}
+              onPulsationModeChange={setPulsationMode}
               onFileUpload={handleFileUpload}
               onLoadSample={handleLoadSample}
             />
@@ -100,6 +103,7 @@ const Index = () => {
               showLabels={showLabels}
               sizeScale={sizeScale}
               opacity={opacity}
+              pulsationMode={pulsationMode}
             />
             <div className="mt-4 text-center text-sm text-muted-foreground">
               <p>Radius: {radiusMode === 'valence' ? 'Valence (outer=negative)' : 'Power (outer=low power)'}</p>
