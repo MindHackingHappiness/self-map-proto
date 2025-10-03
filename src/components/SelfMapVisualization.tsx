@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Plot from 'react-plotly.js';
 import { Entry, Association, SizeMetric, RadiusMode } from '@/types/selfmap';
 import {
@@ -22,6 +22,9 @@ interface SelfMapVisualizationProps {
   sizeScale: number;
   opacity: number;
   pulsationMode: boolean;
+  onNodeClick?: (entry: Entry) => void;
+  onNodeDoubleClick?: (entry: Entry) => void;
+  highlightedNodes?: string[];
 }
 
 const CATEGORIES = ['People', 'Accomplishments', 'Life Story', 'Ideas/Likes', 'Other'];
@@ -49,13 +52,18 @@ export const SelfMapVisualization = ({
   showLabels,
   sizeScale,
   opacity,
-  pulsationMode
+  pulsationMode,
+  onNodeClick,
+  onNodeDoubleClick,
+  highlightedNodes = []
 }: SelfMapVisualizationProps) => {
   const [hoveredEntry, setHoveredEntry] = useState<Entry | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
   const [hoveredImage, setHoveredImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
   const [imageTimeout, setImageTimeout] = useState<NodeJS.Timeout | null>(null);
   const [dimmedNodes, setDimmedNodes] = useState<Set<string>>(new Set());
+  const clickTimeoutRef = useRef<number | null>(null);
 
   // Clean up timeout on unmount
   useEffect(() => {
@@ -203,15 +211,39 @@ export const SelfMapVisualization = ({
         textposition: 'top center',
         textfont: { color: 'rgba(255,255,255,0.88)', size: 10 },
         marker: {
-          size: sizes,
+          size: sizes.map((size, idx) => {
+            const label = categoryEntries[idx].label;
+            if (selectedEntry?.label === label) {
+              return size * 1.3; // Larger for selected
+            }
+            if (highlightedNodes.includes(label)) {
+              return size * 1.15; // Slightly larger for highlighted
+            }
+            return size;
+          }),
           color: displayColors,
           symbol: CATEGORY_SYMBOLS[category],
-          line: { 
+          line: {
             color: displayColors.map((_, idx) => {
               const label = categoryEntries[idx].label;
+              if (selectedEntry?.label === label) {
+                return 'rgba(255,255,255,0.95)'; // Bright white for selected
+              }
+              if (highlightedNodes.includes(label)) {
+                return 'rgba(255,255,255,0.7)'; // Lighter for highlighted
+              }
               return dimmedNodes.has(label) ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.45)';
             }),
-            width: 1.3 
+            width: displayColors.map((_, idx) => {
+              const label = categoryEntries[idx].label;
+              if (selectedEntry?.label === label) {
+                return 2.5; // Thicker border for selected
+              }
+              if (highlightedNodes.includes(label)) {
+                return 1.8; // Thicker border for highlighted
+              }
+              return 1.3;
+            })
           }
         },
         customdata: categoryEntries.map(e => [e.label, e.category, e.power, e.valence]),
@@ -222,7 +254,7 @@ export const SelfMapVisualization = ({
     });
 
     return { positions, weightedDegrees, traces };
-  }, [entries, associations, sizeMetric, radiusMode, showEdges, showLabels, sizeScale, opacity, dimmedNodes]);
+  }, [entries, associations, sizeMetric, radiusMode, showEdges, showLabels, sizeScale, opacity, dimmedNodes, selectedEntry, highlightedNodes]);
 
   const layout = {
     template: 'none',
@@ -319,6 +351,67 @@ export const SelfMapVisualization = ({
     // Don't clear the image - keep it visible until timeout or new hover
   };
 
+  // Enhanced click handler with single/double click detection
+  const handleClick = useCallback((event: any) => {
+    if (event.points && event.points.length > 0) {
+      const point = event.points[0];
+      if (point.customdata) {
+        const [label] = point.customdata;
+        const entry = entries.find(e => e.label === label);
+        if (entry && onNodeClick) {
+          // Clear any existing single-click timeout
+          if (clickTimeoutRef.current) {
+            clearTimeout(clickTimeoutRef.current);
+            clickTimeoutRef.current = null;
+          }
+
+          // Set a timeout for single click
+          clickTimeoutRef.current = window.setTimeout(() => {
+            setSelectedEntry(prev => prev?.label === label ? null : entry);
+            onNodeClick(entry);
+            clickTimeoutRef.current = null;
+          }, 250); // 250ms to differentiate from double-click
+        }
+      }
+    }
+  }, [entries, onNodeClick]);
+
+  // Double-click handler
+  const handleDoubleClick = useCallback((event: any) => {
+    if (event.points && event.points.length > 0) {
+      const point = event.points[0];
+      if (point.customdata) {
+        const [label] = point.customdata;
+        const entry = entries.find(e => e.label === label);
+        if (entry) {
+          // Clear single-click timeout
+          if (clickTimeoutRef.current) {
+            clearTimeout(clickTimeoutRef.current);
+            clickTimeoutRef.current = null;
+          }
+
+          onNodeDoubleClick?.(entry);
+        }
+      }
+    }
+  }, [entries, onNodeDoubleClick]);
+
+  // Keyboard event handler
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedEntry(null);
+        setHoveredEntry(null);
+        setDimmedNodes(new Set());
+        setHoveredImage(null);
+        if (imageTimeout) clearTimeout(imageTimeout);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [imageTimeout]);
+
   return (
     <div className="relative">
       <div className="absolute top-4 right-4 z-10">
@@ -360,6 +453,8 @@ export const SelfMapVisualization = ({
           config={config}
           onHover={handleHover}
           onUnhover={handleUnhover}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
           className="w-full"
         />
       </div>
