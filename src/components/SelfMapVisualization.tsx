@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { Entry, Association, SizeMetric, RadiusMode } from '@/types/selfmap';
 import {
@@ -52,6 +52,17 @@ export const SelfMapVisualization = ({
   const [hoveredEntry, setHoveredEntry] = useState<Entry | null>(null);
   const [hoveredImage, setHoveredImage] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
+  const [imageTimeout, setImageTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [dimmedNodes, setDimmedNodes] = useState<Set<string>>(new Set());
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (imageTimeout) {
+        clearTimeout(imageTimeout);
+      }
+    };
+  }, [imageTimeout]);
 
   const { positions, weightedDegrees, traces } = useMemo(() => {
     const positionsVal = computePositionByValence(entries);
@@ -155,6 +166,16 @@ export const SelfMapVisualization = ({
       const ys = categoryEntries.map(e => positions[e.label]?.y || 0);
       const sizes = getSizesForCategory(categoryEntries, sizeMetric, weightedDegrees, sizeScale);
       const colors = getColorsForCategory(categoryEntries, opacity);
+      
+      // Apply dimming if nodes are dimmed
+      const displayColors = colors.map((color, idx) => {
+        const label = categoryEntries[idx].label;
+        if (dimmedNodes.has(label)) {
+          // Make dimmed nodes very dark with just outline
+          return color.replace(/[\d.]+\)$/, '0.15)');
+        }
+        return color;
+      });
 
       // Glow effect
       traces.push({
@@ -163,7 +184,7 @@ export const SelfMapVisualization = ({
         mode: 'markers',
         marker: {
           size: sizes.map(s => Math.min(80, s * 1.55 + 8)),
-          color: colors.map(c => c.replace(/[\d.]+\)$/, '0.10)')),
+          color: displayColors.map(c => c.replace(/[\d.]+\)$/, '0.10)')),
           symbol: CATEGORY_SYMBOLS[category],
           line: { color: 'rgba(0,0,0,0.0)', width: 0 }
         },
@@ -181,9 +202,15 @@ export const SelfMapVisualization = ({
         textfont: { color: 'rgba(255,255,255,0.88)', size: 10 },
         marker: {
           size: sizes,
-          color: colors,
+          color: displayColors,
           symbol: CATEGORY_SYMBOLS[category],
-          line: { color: 'rgba(0,0,0,0.45)', width: 1.3 }
+          line: { 
+            color: displayColors.map((_, idx) => {
+              const label = categoryEntries[idx].label;
+              return dimmedNodes.has(label) ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.45)';
+            }),
+            width: 1.3 
+          }
         },
         customdata: categoryEntries.map(e => [e.label, e.category, e.power, e.valence]),
         hovertemplate: '%{customdata[0]}<br>Category: %{customdata[1]}<br>Power: %{customdata[2]:.0%}<br>Valence: %{customdata[3]:+.2f}<extra></extra>',
@@ -193,7 +220,7 @@ export const SelfMapVisualization = ({
     });
 
     return { positions, weightedDegrees, traces };
-  }, [entries, associations, sizeMetric, radiusMode, showEdges, showLabels, sizeScale, opacity]);
+  }, [entries, associations, sizeMetric, radiusMode, showEdges, showLabels, sizeScale, opacity, dimmedNodes]);
 
   const layout = {
     template: 'none',
@@ -249,11 +276,36 @@ export const SelfMapVisualization = ({
         const entry = entries.find(e => e.label === label);
         if (entry) {
           setHoveredEntry(entry);
+          
+          // Find connected nodes
+          const connected = new Set<string>([label]);
+          associations.forEach(assoc => {
+            if (assoc.src === label) connected.add(assoc.dst);
+            if (assoc.dst === label) connected.add(assoc.src);
+          });
+          
+          // Dim all nodes that are NOT connected
+          const allLabels = new Set(entries.map(e => e.label));
+          const toDim = new Set([...allLabels].filter(l => !connected.has(l)));
+          setDimmedNodes(toDim);
+          
+          // Clear any existing timeout
+          if (imageTimeout) {
+            clearTimeout(imageTimeout);
+          }
+          
           // Try to load corresponding image (1-10.jpg based on entry index)
           const entryIndex = entries.indexOf(entry);
           const imageNum = (entryIndex % 10) + 1;
           setHoveredImage(`/imagery/${imageNum}.jpg`);
           setImageError(false);
+          
+          // Set timeout to hide image after 30 seconds
+          const timeout = setTimeout(() => {
+            setHoveredImage(null);
+            setImageError(false);
+          }, 30000);
+          setImageTimeout(timeout);
         }
       }
     }
@@ -261,8 +313,8 @@ export const SelfMapVisualization = ({
 
   const handleUnhover = () => {
     setHoveredEntry(null);
-    setHoveredImage(null);
-    setImageError(false);
+    setDimmedNodes(new Set());
+    // Don't clear the image immediately - let the timeout handle it
   };
 
   return (

@@ -213,34 +213,37 @@ export const getColorsForCategory = (
   alpha: number
 ): string[] => {
   return entries.map(entry => {
-    const hslColor = getCategoryColor(entry.category, entry.power, entry.valence);
-    // Convert HSL to RGBA
-    const match = hslColor.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-    if (match) {
-      const h = parseInt(match[1]);
-      const s = parseInt(match[2]) / 100;
-      const l = parseInt(match[3]) / 100;
-      
-      // HSL to RGB conversion
-      const c = (1 - Math.abs(2 * l - 1)) * s;
-      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-      const m = l - c / 2;
-      
-      let r = 0, g = 0, b = 0;
-      if (h < 60) { r = c; g = x; b = 0; }
-      else if (h < 120) { r = x; g = c; b = 0; }
-      else if (h < 180) { r = 0; g = c; b = x; }
-      else if (h < 240) { r = 0; g = x; b = c; }
-      else if (h < 300) { r = x; g = 0; b = c; }
-      else { r = c; g = 0; b = x; }
-      
-      r = Math.round((r + m) * 255);
-      g = Math.round((g + m) * 255);
-      b = Math.round((b + m) * 255);
-      
-      return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
-    }
-    return hexToRgba('#9e9e9e', alpha);
+    const [h, s, l] = CATEGORY_COLORS[entry.category] || CATEGORY_COLORS['Other'];
+    
+    // Brighten based on power and valence
+    const powerBoost = entry.power * 15;
+    const valenceBoost = entry.valence * 10;
+    
+    const adjustedL = Math.min(85, Math.max(35, l + powerBoost));
+    const adjustedS = Math.min(100, Math.max(30, s + valenceBoost));
+    
+    // HSL to RGB conversion
+    const hNorm = h / 360;
+    const sNorm = adjustedS / 100;
+    const lNorm = adjustedL / 100;
+    
+    const c = (1 - Math.abs(2 * lNorm - 1)) * sNorm;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = lNorm - c / 2;
+    
+    let r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; b = 0; }
+    else if (h < 120) { r = x; g = c; b = 0; }
+    else if (h < 180) { r = 0; g = c; b = x; }
+    else if (h < 240) { r = 0; g = x; b = c; }
+    else if (h < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    
+    r = Math.round((r + m) * 255);
+    g = Math.round((g + m) * 255);
+    b = Math.round((b + m) * 255);
+    
+    return `rgba(${r},${g},${b},${alpha})`;
   });
 };
 
