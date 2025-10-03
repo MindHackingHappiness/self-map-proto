@@ -31,7 +31,32 @@ export const interpolateHex = (hex1: string, hex2: string, t: number): string =>
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 };
 
-// Get color based on valence
+// Category base colors (HSL)
+const CATEGORY_COLORS: Record<string, [number, number, number]> = {
+  'People': [280, 70, 60],           // Purple/Magenta
+  'Accomplishments': [45, 95, 60],   // Gold/Yellow
+  'Life Story': [200, 75, 55],       // Cyan/Blue
+  'Ideas/Likes': [140, 70, 55],      // Green
+  'Other': [0, 0, 62]                // Gray
+};
+
+// Get color based on category with power/valence modulation
+export const getCategoryColor = (category: string, power: number, valence: number): string => {
+  const [h, s, l] = CATEGORY_COLORS[category] || CATEGORY_COLORS['Other'];
+  
+  // Brighten based on power (0-1) - higher power = brighter
+  const powerBoost = power * 15; // Up to +15% lightness
+  
+  // Modulate saturation based on valence - positive = more saturated
+  const valenceBoost = valence * 10; // ±10% saturation
+  
+  const adjustedL = Math.min(85, Math.max(35, l + powerBoost));
+  const adjustedS = Math.min(100, Math.max(30, s + valenceBoost));
+  
+  return `hsl(${h}, ${adjustedS}%, ${adjustedL}%)`;
+};
+
+// Legacy function for compatibility
 export const getValenceColor = (valence: number): string => {
   if (valence >= 0.02) {
     return interpolateHex('#a5d6a7', '#00e676', Math.min(1.0, valence));
@@ -182,14 +207,40 @@ export const getSizesForCategory = (
   });
 };
 
-// Get colors for category with alpha
+// Get colors for category with alpha using category-based coloring
 export const getColorsForCategory = (
   entries: Entry[],
   alpha: number
 ): string[] => {
   return entries.map(entry => {
-    const hexColor = getValenceColor(entry.valence);
-    return hexToRgba(hexColor, alpha);
+    const hslColor = getCategoryColor(entry.category, entry.power, entry.valence);
+    // Convert HSL to RGBA
+    const match = hslColor.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+    if (match) {
+      const h = parseInt(match[1]);
+      const s = parseInt(match[2]) / 100;
+      const l = parseInt(match[3]) / 100;
+      
+      // HSL to RGB conversion
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+      const m = l - c / 2;
+      
+      let r = 0, g = 0, b = 0;
+      if (h < 60) { r = c; g = x; b = 0; }
+      else if (h < 120) { r = x; g = c; b = 0; }
+      else if (h < 180) { r = 0; g = c; b = x; }
+      else if (h < 240) { r = 0; g = x; b = c; }
+      else if (h < 300) { r = x; g = 0; b = c; }
+      else { r = c; g = 0; b = x; }
+      
+      r = Math.round((r + m) * 255);
+      g = Math.round((g + m) * 255);
+      b = Math.round((b + m) * 255);
+      
+      return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+    }
+    return hexToRgba('#9e9e9e', alpha);
   });
 };
 

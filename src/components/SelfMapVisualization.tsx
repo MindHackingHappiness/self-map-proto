@@ -50,6 +50,8 @@ export const SelfMapVisualization = ({
   opacity
 }: SelfMapVisualizationProps) => {
   const [hoveredEntry, setHoveredEntry] = useState<Entry | null>(null);
+  const [hoveredImage, setHoveredImage] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   const { positions, weightedDegrees, traces } = useMemo(() => {
     const positionsVal = computePositionByValence(entries);
@@ -247,6 +249,11 @@ export const SelfMapVisualization = ({
         const entry = entries.find(e => e.label === label);
         if (entry) {
           setHoveredEntry(entry);
+          // Try to load corresponding image (1-10.jpg based on entry index)
+          const entryIndex = entries.indexOf(entry);
+          const imageNum = (entryIndex % 10) + 1;
+          setHoveredImage(`/imagery/${imageNum}.jpg`);
+          setImageError(false);
         }
       }
     }
@@ -254,6 +261,8 @@ export const SelfMapVisualization = ({
 
   const handleUnhover = () => {
     setHoveredEntry(null);
+    setHoveredImage(null);
+    setImageError(false);
   };
 
   return (
@@ -261,7 +270,24 @@ export const SelfMapVisualization = ({
       <div className="absolute top-4 right-4 z-10">
         <HoverInfo entry={hoveredEntry} visible={hoveredEntry !== null} />
       </div>
-      <div className="viz-container">
+      
+      {hoveredImage && !imageError && (
+        <div className="image-preview">
+          <img 
+            src={hoveredImage}
+            alt="Entry visualization"
+            className="w-32 h-32 object-cover pulse-glow"
+            onError={() => setImageError(true)}
+          />
+        </div>
+      )}
+      
+      <div className="viz-container relative overflow-visible">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-full bg-gradient-to-b from-primary/20 via-transparent to-transparent" />
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 h-1 w-full bg-gradient-to-r from-primary/20 via-transparent to-transparent" />
+        </div>
+        
         <Plot
           data={traces}
           layout={layout}
